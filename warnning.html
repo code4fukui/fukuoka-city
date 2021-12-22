@@ -1,0 +1,69 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>感染症流行警告アプリ「ワーンニング」みんなの投票データ 2021.12.21</title>
+<style>
+body {
+  margin: 0;
+}
+</style>
+<script type="module">
+import { LeafletGSI } from "https://js.sabae.cc/LeafletGSI.js";
+import { CSV } from "https://js.sabae.cc/CSV.js";
+
+onload = async () => {
+  const fn = "./warnning.csv";
+  const data0 = CSV.toJSON(await CSV.fetch(fn));
+  data0.sort((a, b) => b.投票日 - a.投票日);
+  const latestday = data0[0].投票日;
+  const data = data0.filter(d => d.投票日 == latestday);
+  console.log(data);
+  
+
+  const div = document.createElement("div");
+  div.style.height = "100vh";
+  document.body.appendChild(div);
+  const map = await LeafletGSI.initMap(div);
+
+  const iconlayer = L.layerGroup();
+  iconlayer.addTo(map);
+  const lls = [];
+  for (const item of data) {
+    const ll = [ item.地点緯度, item.地点経度 ];
+    const name = item.自治体 + " " + item.地点;
+    const color = (() => {
+      const n = item.投票数;
+      if (n == 0) {
+        return "blue";
+      } else if (n > 10) {
+        return "red";
+      } else {
+        return "yellow";
+      }
+    })();
+    const summary = (d) => {
+      const names = ["のど", "せき", "発熱", "鼻水"];
+      const cnts = {};
+      for (const n in d) {
+        for (const name of names) {
+          if (n.indexOf(name) >= 0) {
+            const cnt = parseInt(d[n]);
+            if (cnts[name] == undefined) {
+              cnts[name] = cnt;
+            } else {
+              cnts[name] += cnt;
+            }
+          }
+        }
+      }
+      return Object.keys(cnts).map(name => name + ": " + cnts[name]).join("<br>");
+    };
+    const marker = L.marker(ll, { title: name, icon: L.spriteIcon(color) });
+    const credit = `DATA: <a href=https://ckan.open-governmentdata.org/dataset/2c830d40-a4f1-4335-9d05-eeaa18b765f3>感染症流行警告アプリ「ワーンニング」みんなの投票データ（直近15日分） - データセット - 自治体オープンデータのCKAN</a>`;
+    marker.bindPopup(name + "<br>" + summary(item) + "<br>DATE: " + item.投票日 + "<br>" + credit);
+    iconlayer.addLayer(marker);
+    lls.push(ll);
+  }
+  if (lls.length) {
+    map.fitBounds(lls);
+  }
+};
+</script>
